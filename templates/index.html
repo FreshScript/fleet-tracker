@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FleetTrack Pro — GPS Fleet Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #060d14;
+    --surface: #0b1724;
+    --surface2: #0f2035;
+    --border: #1a3a5c;
+    --accent: #00d4ff;
+    --accent2: #00ff88;
+    --warn: #ff9500;
+    --danger: #ff3b57;
+    --text: #c8dff0;
+    --muted: #4a7499;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font: 'Barlow', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px var(--accent); }
+    50% { box-shadow: 0 0 24px var(--accent), 0 0 48px var(--accent); }
+  }
+
+  .logo-text {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: -2px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .clock {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 300px 1fr 280px;
+    grid-template-rows: 1fr;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* LEFT PANEL */
+  .left-panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .badge {
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .vehicle-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .vehicle-list::-webkit-scrollbar { width: 4px; }
+  .vehicle-list::-webkit-scrollbar-track { background: transparent; }
+  .vehicle-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .vehicle-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .vehicle-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent2);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .vehicle-card:hover, .vehicle-card.selected {
+    border-color: var(--accent);
+    background: #0d1e30;
+  }
+
+  .vehicle-card.selected::before { opacity: 1; }
+
+  .vehicle-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .vehicle-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: #e0f0ff;
+  }
+
+  .vehicle-id {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 6px var(--accent2);
+    flex-shrink: 0;
+  }
+
+  .vehicle-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  /* SPEED BAR */
+  .speed-bar-wrap {
+    margin-top: 8px;
+  }
+
+  .speed-bar-bg {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .speed-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .stat-box {
+    padding: 12px 16px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .stat-box:last-child { border-right: none; }
+
+  .stat-box-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-box-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* MAP */
+  .map-container {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #map {
+    flex: 1;
+  }
+
+  /* RIGHT PANEL */
+  .right-panel {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .alerts-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .alert-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .alert-item.danger { border-left-color: var(--danger); }
+  .alert-item.info { border-left-color: var(--accent); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } }
+
+  .alert-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--warn);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .alert-item.danger .alert-type { color: var(--danger); }
+  .alert-item.info .alert-type { color: var(--accent); }
+
+  .alert-vehicle {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e0f0ff;
+    margin: 3px 0;
+  }
+
+  .alert-msg {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .alert-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--border);
+    margin-top: 4px;
+  }
+
+  /* VEHICLE DETAIL */
+  .vehicle-detail {
+    border-top: 1px solid var(--border);
+    padding: 16px;
+    flex-shrink: 0;
+  }
+
+  .detail-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .detail-item .label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .detail-item .value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 2px;
+  }
+
+  /* Map custom markers */
+  .map-marker {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    filter: drop-shadow(0 2px 6px rgba(0,212,255,0.6));
+    animation: marker-pop 0.3s ease;
+    transition: transform 0.3s ease;
+  }
+
+  @keyframes marker-pop {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+
+  .leaflet-container {
+    background: #050e18 !important;
+  }
+
+  /* Scrollbar */
+  .alerts-list::-webkit-scrollbar { width: 4px; }
+  .alerts-list::-webkit-scrollbar-track { background: transparent; }
+  .alerts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .no-data {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 20px;
+    font-family: var(--font-mono);
+  }
+
+  .type-icon { font-size: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div>
+      <div class="logo-text">FLEETTRACK</div>
+      <div class="logo-sub">GPS Fleet Management System</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      LIVE TRACKING
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- Stats Bar -->
+<div class="stats-row" id="statsRow">
+  <div class="stat-box">
+    <div class="stat-box-value" id="statTotal">—</div>
+    <div class="stat-box-label">Total Vehicles</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-box-value" id="statActive">—</div>
+    <div class="stat-box-label">Active Now</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-box-value" id="statPoints">—</div>
+    <div class="stat-box-label">GPS Points</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-box-value" id="statAlerts">—</div>
+    <div class="stat-box-label">Alerts</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Left Panel: Vehicle List -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span class="panel-title">Fleet Vehicles</span>
+      <span class="badge" id="vehicleCount">0</span>
+    </div>
+    <div class="vehicle-list" id="vehicleList">
+      <div class="no-data">Loading vehicles...</div>
+    </div>
+  </div>
+
+  <!-- Center: Map -->
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+
+  <!-- Right Panel: Alerts + Detail -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span class="panel-title">Alerts</span>
+    </div>
+    <div class="alerts-list" id="alertsList">
+      <div class="no-data">Loading alerts...</div>
+    </div>
+
+    <div class="vehicle-detail" id="vehicleDetail" style="display:none;">
+      <div class="detail-title" id="detailName">Selected Vehicle</div>
+      <div class="detail-grid" id="detailGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Map Setup ──────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-15.4167, 28.2833], 13);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+// ── State ─────────────────────────────────────────────────
+let vehicles = [];
+let markers = {};
+let selectedId = null;
+
+// ── Clock ─────────────────────────────────────────────────
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Vehicle Icon ──────────────────────────────────────────
+function vehicleEmoji(type) {
+  return type === 'truck' ? '🚛' : type === 'van' ? '🚐' : '🚗';
+}
+
+function createMarkerIcon(type, selected = false) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="map-marker" style="transform:scale(${selected ? 1.4 : 1})">${vehicleEmoji(type)}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+}
+
+// ── Fetch & Render Vehicles ───────────────────────────────
+async function loadVehicles() {
+  const res = await fetch('/api/vehicles');
+  vehicles = await res.json();
+  document.getElementById('vehicleCount').textContent = vehicles.length;
+  renderVehicleList();
+  renderMarkers();
+}
+
+function renderVehicleList() {
+  const el = document.getElementById('vehicleList');
+  el.innerHTML = '';
+  vehicles.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'vehicle-card' + (v.id === selectedId ? ' selected' : '');
+    card.dataset.id = v.id;
+    const speedPct = Math.min(100, (v.speed / 120) * 100);
+    card.innerHTML = `
+      <div class="vehicle-top">
+        <div>
+          <div class="vehicle-name">${vehicleEmoji(v.type)} ${v.name}</div>
+          <div class="vehicle-id">${v.id}</div>
+        </div>
+        <div class="status-dot"></div>
+      </div>
+      <div class="vehicle-stats">
+        <div class="stat-item">
+          <span class="stat-label">Speed</span>
+          <span class="stat-value">${v.speed.toFixed(1)} km/h</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Heading</span>
+          <span class="stat-value">${v.heading.toFixed(0)}°</span>
+        </div>
+      </div>
+      <div class="speed-bar-wrap">
+        <div class="speed-bar-bg"><div class="speed-bar-fill" style="width:${speedPct}%"></div></div>
+      </div>
+    `;
+    card.addEventListener('click', () => selectVehicle(v.id));
+    el.appendChild(card);
+  });
+}
+
+function renderMarkers() {
+  vehicles.forEach(v => {
+    if (!v.lat || !v.lng) return;
+    if (markers[v.id]) {
+      markers[v.id].setLatLng([v.lat, v.lng]);
+      markers[v.id].setIcon(createMarkerIcon(v.type, v.id === selectedId));
+    } else {
+      const m = L.marker([v.lat, v.lng], { icon: createMarkerIcon(v.type) }).addTo(map);
+      m.bindPopup(`<b>${v.name}</b><br>${v.id}<br>Speed: ${v.speed} km/h`);
+      m.on('click', () => selectVehicle(v.id));
+      markers[v.id] = m;
+    }
+  });
+}
+
+// ── Select Vehicle ────────────────────────────────────────
+function selectVehicle(id) {
+  selectedId = id;
+  const v = vehicles.find(x => x.id === id);
+  if (!v) return;
+
+  // Update list highlight
+  document.querySelectorAll('.vehicle-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.id === id);
+  });
+
+  // Update marker sizes
+  vehicles.forEach(x => {
+    if (markers[x.id]) markers[x.id].setIcon(createMarkerIcon(x.type, x.id === id));
+  });
+
+  // Pan map
+  if (v.lat && v.lng) map.setView([v.lat, v.lng], 15, { animate: true });
+
+  // Show detail panel
+  const detail = document.getElementById('vehicleDetail');
+  detail.style.display = 'block';
+  document.getElementById('detailName').textContent = `${vehicleEmoji(v.type)} ${v.name}`;
+  document.getElementById('detailGrid').innerHTML = `
+    <div class="detail-item"><div class="label">Vehicle ID</div><div class="value">${v.id}</div></div>
+    <div class="detail-item"><div class="label">Type</div><div class="value">${v.type}</div></div>
+    <div class="detail-item"><div class="label">Latitude</div><div class="value">${v.lat?.toFixed(4)}</div></div>
+    <div class="detail-item"><div class="label">Longitude</div><div class="value">${v.lng?.toFixed(4)}</div></div>
+    <div class="detail-item"><div class="label">Speed</div><div class="value">${v.speed?.toFixed(1)} km/h</div></div>
+    <div class="detail-item"><div class="label">Heading</div><div class="value">${v.heading?.toFixed(0)}°</div></div>
+    <div class="detail-item" style="grid-column:span 2"><div class="label">Last Ping</div><div class="value">${v.last_seen}</div></div>
+  `;
+}
+
+// ── Live Updates ──────────────────────────────────────────
+async function fetchLive() {
+  const res = await fetch('/api/live');
+  const updates = await res.json();
+  updates.forEach(u => {
+    const v = vehicles.find(x => x.id === u.id);
+    if (v) {
+      v.lat = u.lat; v.lng = u.lng;
+      v.speed = u.speed; v.heading = u.heading;
+      v.last_seen = u.last_seen;
+    }
+  });
+  renderVehicleList();
+  renderMarkers();
+  if (selectedId) selectVehicle(selectedId);
+}
+
+// ── Alerts ────────────────────────────────────────────────
+async function loadAlerts() {
+  const res = await fetch('/api/alerts');
+  const alerts = await res.json();
+  const el = document.getElementById('alertsList');
+  if (!alerts.length) { el.innerHTML = '<div class="no-data">No alerts</div>'; return; }
+  el.innerHTML = '';
+  alerts.forEach(a => {
+    const cls = a.alert_type === 'speeding' ? 'danger' : a.alert_type === 'geofence' ? '' : 'info';
+    const item = document.createElement('div');
+    item.className = `alert-item ${cls}`;
+    item.innerHTML = `
+      <div class="alert-type">${a.alert_type.toUpperCase()}</div>
+      <div class="alert-vehicle">${a.vehicle_name}</div>
+      <div class="alert-msg">${a.message}</div>
+      <div class="alert-time">${a.timestamp}</div>
+    `;
+    el.appendChild(item);
+  });
+}
+
+// ── Stats ─────────────────────────────────────────────────
+async function loadStats() {
+  const res = await fetch('/api/stats');
+  const s = await res.json();
+  document.getElementById('statTotal').textContent = s.total_vehicles;
+  document.getElementById('statActive').textContent = s.active_vehicles;
+  document.getElementById('statPoints').textContent = s.total_gps_points.toLocaleString();
+  document.getElementById('statAlerts').textContent = s.total_alerts;
+}
+
+// ── Init ──────────────────────────────────────────────────
+(async function init() {
+  await loadVehicles();
+  await loadAlerts();
+  await loadStats();
+  // Live update every 4 seconds
+  setInterval(fetchLive, 4000);
+  setInterval(loadStats, 10000);
+})();
+</script>
+</body>
+</html>
