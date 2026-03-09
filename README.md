@@ -77,6 +77,12 @@ while True:
 ## Screenshots
 
 > Dashboard showing 5 live vehicles on a dark map with real-time speed bars, alert panel, and vehicle details.
+> <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/c46d1da5-af49-44bb-91df-ef4281ae1fd3" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/5aaf0a55-03dd-4efa-9f89-85732d99c201" />
+<img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/b24a2cd5-36bc-4591-a76e-37cdb57ef970" />
+
+
+
 
 ## Architecture
 
